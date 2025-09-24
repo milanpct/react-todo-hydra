@@ -257,9 +257,6 @@ export const SDKTestPanel: React.FC = () => {
             <strong>⚠️ Partial Success (10 events):</strong> Single batch, 7 succeed + 3 retry
           </div>
           <div>
-            <strong>📦 Batch Queue (75 events):</strong> 2 batches (50 + 25 events)
-          </div>
-          <div>
             <strong>🎯 Large Batch (120 events):</strong> 3 batches (50 + 50 + 20 events)
           </div>
           <div>
@@ -271,7 +268,8 @@ export const SDKTestPanel: React.FC = () => {
       {/* Current Configuration */}
       <div className="text-xs text-gray-500 bg-gray-50 p-3 rounded">
         <strong>SDK Configuration:</strong> Batch Size: 50 events | Max Retries:
-        5 | Retry Codes: 408, 429, 500, 502, 503, 504, 401
+        Unless event get success, it will be retried indefinitely | Retry Codes:
+        408, 429, 500, 502, 503, 504, 401
       </div>
     </div>
   );
