@@ -12,6 +12,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   const handleLogout = async () => {
     try {
       await logout();
+      window.location.reload();
     } catch (error) {
       console.error('Logout failed:', error);
     }
