@@ -22,24 +22,44 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    // Initialize Hydra SDK on app start
-    hydraService.initialize().catch(error => {
-      console.error('Hydra SDK initialization failed:', error);
-      // Continue without SDK - app should still work
-    });
-    
-    // Check for stored user session
+    // Check for stored user session first
     const storedUser = localStorage.getItem('user');
     if (storedUser) {
       try {
         const parsedUser = JSON.parse(storedUser);
         setUser(parsedUser);
+        
+        // Initialize Hydra SDK for existing logged-in user
+        initializeSDKForUser(parsedUser);
       } catch (error) {
         console.error('Failed to parse stored user:', error);
         localStorage.removeItem('user');
       }
     }
+    // If no user is stored, don't initialize SDK yet - wait for login/signup
   }, []);
+
+  // Helper function to initialize SDK for a user
+  const initializeSDKForUser = async (user: User) => {
+    try {
+      if (!hydraService.isInitialized()) {
+        console.log('Initializing Hydra SDK for user:', user.email);
+        await hydraService.initialize();
+        
+        // Track that this user session has started (for already logged-in users)
+        await hydraService.trackUserSignin(
+          user.id,
+          user.firstName,
+          user.lastName,
+          user.email,
+          user.phone
+        );
+      }
+    } catch (error) {
+      console.error('Hydra SDK initialization failed for user:', error);
+      // Continue without SDK - app should still work
+    }
+  };
 
   const login = async (email: string, password: string) => {
     setLoading(true);
@@ -48,8 +68,13 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       setUser(loggedInUser);
       localStorage.setItem('user', JSON.stringify(loggedInUser));
       
-      // Track signin event with Hydra SDK
+      // Initialize Hydra SDK and track signin event
       try {
+        if (!hydraService.isInitialized()) {
+          console.log('Initializing Hydra SDK for login user:', loggedInUser.email);
+          await hydraService.initialize();
+        }
+        
         await hydraService.trackUserSignin(
           loggedInUser.id,
           loggedInUser.firstName,
@@ -59,7 +84,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         );
         
       } catch (error) {
-        console.error('Failed to track signin event:', error);
+        console.error('Failed to initialize SDK or track signin event:', error);
         // Continue without tracking - login should still work
       }
     } catch (error) {
@@ -77,11 +102,16 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       setUser(newUser);
       localStorage.setItem('user', JSON.stringify(newUser));
       
-      // Track signup event with Hydra SDK
+      // Initialize Hydra SDK and track signup event
       try {
+        if (!hydraService.isInitialized()) {
+          console.log('Initializing Hydra SDK for signup user:', newUser.email);
+          await hydraService.initialize();
+        }
+        
         await hydraService.trackUserSignup(newUser);
       } catch (error) {
-        console.error('Failed to track signup event:', error);
+        console.error('Failed to initialize SDK or track signup event:', error);
         // Continue without tracking - signup should still work
       }
     } catch (error) {
@@ -99,6 +129,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         // Track signout event with Hydra SDK
         try {
           await hydraService.trackUserSignout(user.id);
+          hydraService.resetUserSession();
         } catch (error) {
           console.error('Failed to track signout event:', error);
           // Continue with logout even if tracking fails

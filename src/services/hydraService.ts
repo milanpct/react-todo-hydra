@@ -79,8 +79,24 @@ class HydraService {
     if (!this.sdk) throw new Error('SDK not initialized');
     
     await this.sdk.pushUserSignOut(userId);
+    // Note: WebSDK automatically destroys itself after signout
+    // This is the expected behavior, so we reset our state accordingly
     this.sdk = null;
     this.initialized = false;
+    console.log('Hydra SDK destroyed after user signout');
+  }
+
+  // Method to reset SDK state (called after WebSDK destroys itself)
+  resetUserSession() {
+    // Reset our tracking state since WebSDK destroys itself on signout
+    this.sdk = null;
+    this.initialized = false;
+    console.log('Hydra SDK user session reset');
+  }
+
+  // Method to check if SDK is initialized
+  isInitialized(): boolean {
+    return this.initialized && this.sdk !== null;
   }
 
   async trackEvent(eventName: string, attributes?: Record<string, unknown>) {
