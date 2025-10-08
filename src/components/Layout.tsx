@@ -1,6 +1,6 @@
-import React from 'react';
-import { useAuth } from '../contexts/AuthContext';
-import { LogOut, User } from 'lucide-react';
+import React from "react";
+import { useAuth } from "../contexts/AuthContext";
+import { LogOut, User } from "lucide-react";
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -12,9 +12,8 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   const handleLogout = async () => {
     try {
       await logout();
-      window.location.reload();
     } catch (error) {
-      console.error('Logout failed:', error);
+      console.error("Logout failed:", error);
     }
   };
 
@@ -30,13 +29,15 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
             <div className="flex items-center">
               <h1 className="text-xl font-semibold text-gray-900">Todo App</h1>
             </div>
-            
+
             <div className="flex items-center space-x-4">
               <div className="flex items-center space-x-2 text-sm text-gray-600">
                 <User className="h-4 w-4" />
-                <span>{user.firstName} {user.lastName}</span>
+                <span>
+                  {user.firstName} {user.lastName}
+                </span>
               </div>
-              
+
               <button
                 onClick={handleLogout}
                 className="flex items-center space-x-1 px-3 py-2 text-sm text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-md transition-colors"
@@ -48,7 +49,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
           </div>
         </div>
       </header>
-      
+
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {children}
       </main>
