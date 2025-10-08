@@ -1,7 +1,8 @@
-import WebSDK from "hydra-sdk-web";
+// Import the WebSDK types
+import type { WebSDKInstance } from "../types/global";
 
 class HydraService {
-  private sdk: WebSDK | null = null;
+  private sdk: WebSDKInstance | null = null;
   private initialized = false;
 
   initialize() {
@@ -11,6 +12,13 @@ class HydraService {
     }
 
     try {
+      // Check if WebSDK is available globally
+      if (typeof window === "undefined" || !window.WebSDK) {
+        throw new Error(
+          "WebSDK is not available. Make sure the hydra_sdk_web.js script is loaded."
+        );
+      }
+
       const config = {
         accountId: "e14378390072",
         baseURL: "https://mock-server-7d3h.onrender.com/",
@@ -23,7 +31,7 @@ class HydraService {
       };
 
       console.log("Initializing Hydra SDK with config:", config);
-      this.sdk = new WebSDK(config);
+      this.sdk = new window.WebSDK(config);
 
       // ✅ Fire-and-forget initialization (non-blocking)
       this.sdk.init();
