@@ -4,10 +4,12 @@ import type { WebSDKInstance } from "../types/global";
 class HydraService {
   private sdk: WebSDKInstance | null = null;
   private initialized = false;
+  private userIdentified = false;
 
-  initialize() {
+  // Initialize SDK for anonymous users (called on app load)
+  initializeAnonymous() {
     if (this.initialized) {
-      console.log("Hydra SDK already initialized, skipping...");
+      console.log("Hydra SDK already initialized");
       return;
     }
 
@@ -20,8 +22,10 @@ class HydraService {
       }
 
       const config = {
-        accountId: "e14378390072",
+        accountId: "1234",
         baseURL: "https://mock-server-7d3h.onrender.com/",
+        orgId: "1102", // ⚠️ REQUIRED - Replace with your actual orgId
+        vapId: "test-vap-456", // ⚠️ REQUIRED - Replace with your actual vapId
         country: "US",
         city: "New York",
         countryCode: "US",
@@ -30,19 +34,35 @@ class HydraService {
         applicationId: "todo-app",
       };
 
-      console.log("Initializing Hydra SDK with config:", config);
+      console.log("Initializing Hydra SDK for anonymous tracking:", config);
       this.sdk = new window.WebSDK(config);
 
       // ✅ Fire-and-forget initialization (non-blocking)
       this.sdk.init();
       this.initialized = true;
+      this.userIdentified = false;
       console.log(
-        "✅ Hydra SDK initialization started (background processing)"
+        "✅ Hydra SDK initialized for anonymous tracking (background processing)"
       );
     } catch (error) {
       console.error("Failed to initialize Hydra SDK:", error);
       throw error;
     }
+  }
+
+  // Reuse existing SDK instance if already initialized
+  initialize() {
+    if (this.initialized) {
+      console.log("Hydra SDK already initialized, reusing instance");
+      return;
+    }
+    this.initializeAnonymous();
+  }
+
+  // Mark user as identified
+  private identifyUser(userId: string) {
+    this.userIdentified = true;
+    console.log("✅ User identified:", userId);
   }
 
   trackUserSignup(user: {
@@ -56,6 +76,9 @@ class HydraService {
       console.warn("SDK not initialized, signup tracking skipped");
       return;
     }
+
+    // ✅ Identify user on signup
+    this.identifyUser(user.id);
 
     // ✅ Fire-and-forget user signup tracking (non-blocking)
     this.sdk.pushUserSignup(
@@ -79,6 +102,9 @@ class HydraService {
       console.warn("SDK not initialized, signin tracking skipped");
       return;
     }
+
+    // ✅ Identify user on signin
+    this.identifyUser(userId);
 
     // ✅ Fire-and-forget user signin tracking (non-blocking)
     this.sdk.pushUserSignin(userId, firstName, lastName, email, phone);
@@ -117,26 +143,28 @@ class HydraService {
     // ✅ Fire-and-forget user signout tracking (non-blocking)
     this.sdk.pushUserSignOut(userId);
 
-    // Note: WebSDK automatically destroys itself after signout
-    // This is the expected behavior, so we reset our state accordingly
-    this.sdk = null;
-    this.initialized = false;
+    // ✅ User becomes anonymous after signout
+    this.userIdentified = false;
     console.log(
-      "✅ User signout tracking started, SDK will destroy itself (background processing)"
+      "✅ User signout tracking started, user now anonymous (background processing)"
     );
   }
 
-  // Method to reset SDK state (called after WebSDK destroys itself)
+  // Method to reset SDK state (user becomes anonymous)
   resetUserSession() {
-    // Reset our tracking state since WebSDK destroys itself on signout
-    this.sdk = null;
-    this.initialized = false;
-    console.log("Hydra SDK user session reset");
+    // Don't destroy SDK - just mark as anonymous
+    this.userIdentified = false;
+    console.log("User session reset - SDK continues for anonymous tracking");
   }
 
   // Method to check if SDK is initialized
   isInitialized(): boolean {
     return this.initialized && this.sdk !== null;
+  }
+
+  // Method to check if user is identified
+  isUserIdentified(): boolean {
+    return this.userIdentified;
   }
 
   trackEvent(eventName: string, attributes?: Record<string, unknown>) {

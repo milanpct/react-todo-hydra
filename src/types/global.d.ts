@@ -1,14 +1,23 @@
 // Global type declarations for WebSDK loaded via script tag
 
 export interface WebSDKConfig {
-  accountId: string;
-  baseURL: string;
-  country?: string;
-  city?: string;
-  countryCode?: string;
+  accountId: string; // required
+  baseURL: string; // required
+  orgId: string; // required - organization ID for visitor tracking
+  vapId: string; // required - VAP ID for visitor tracking
+  country: string; // required
+  city: string; // required
+  countryCode: string; // required
   debugLevel?: "VERBOSE" | "DEBUG" | "INFO" | "WARN" | "ERROR" | "NONE";
-  brandId?: string;
-  applicationId?: string;
+  brandId?: string; // Optional brand identifier for multi-tenant isolation
+  applicationId?: string; // Optional application identifier for same-domain isolation
+  commChannels?: Array<{
+    type: string;
+    value: string;
+    primary?: boolean;
+    verified?: boolean;
+  }>; // Optional communication channels for visitor
+  extendedFields?: Record<string, unknown>; // Optional extended fields for visitor
 }
 
 export interface WebSDKInstance {

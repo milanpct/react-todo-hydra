@@ -18,18 +18,16 @@ function AppContent() {
   return (
     <Layout>
       <Routes>
+        {/* ✅ ALLOW ANONYMOUS ACCESS TO DASHBOARD */}
         <Route
           path="/"
           element={
-            user ? (
-              <TodoProvider>
-                <Dashboard />
-              </TodoProvider>
-            ) : (
-              <Navigate to="/auth" replace />
-            )
+            <TodoProvider>
+              <Dashboard />
+            </TodoProvider>
           }
         />
+        {/* ✅ REDIRECT AUTHENTICATED USERS AWAY FROM AUTH PAGE */}
         <Route
           path="/auth"
           element={!user ? <Auth /> : <Navigate to="/" replace />}

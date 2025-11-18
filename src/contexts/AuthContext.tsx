@@ -28,50 +28,40 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    // Check for stored user session first
+    // ✅ INITIALIZE SDK FOR ANONYMOUS USERS IMMEDIATELY
+    try {
+      if (!hydraService.isInitialized()) {
+        console.log("Initializing Hydra SDK for anonymous user");
+        hydraService.initializeAnonymous();
+      }
+    } catch (error) {
+      console.error("Failed to initialize SDK for anonymous user:", error);
+      // Continue without SDK - app should still work
+    }
+
+    // Check for stored user session
     const storedUser = localStorage.getItem("user");
     if (storedUser) {
       try {
         const parsedUser = JSON.parse(storedUser);
         setUser(parsedUser);
 
-        // Initialize Hydra SDK for existing logged-in user
-        initializeSDKForUser(parsedUser);
+        // Track signin for returning user (this will also identify the user)
+        hydraService.trackUserSignin(
+          parsedUser.id,
+          parsedUser.firstName,
+          parsedUser.lastName,
+          parsedUser.email,
+          parsedUser.phone
+        );
+
+        console.log("✅ Returning user identified:", parsedUser.email);
       } catch (error) {
         console.error("Failed to parse stored user:", error);
         localStorage.removeItem("user");
       }
     }
-    // If no user is stored, don't initialize SDK yet - wait for login/signup
   }, []);
-
-  // Helper function to initialize SDK for a user
-  const initializeSDKForUser = (user: User) => {
-    try {
-      if (!hydraService.isInitialized()) {
-        console.log("Initializing Hydra SDK for user:", user.email);
-
-        // ✅ Fire-and-forget initialization (non-blocking)
-        hydraService.initialize();
-
-        // ✅ Fire-and-forget signin tracking (non-blocking)
-        hydraService.trackUserSignin(
-          user.id,
-          user.firstName,
-          user.lastName,
-          user.email,
-          user.phone
-        );
-
-        console.log(
-          "✅ SDK initialization and signin tracking started (background processing)"
-        );
-      }
-    } catch (error) {
-      console.error("Hydra SDK initialization failed for user:", error);
-      // Continue without SDK - app should still work
-    }
-  };
 
   const login = async (email: string, password: string) => {
     setLoading(true);
@@ -80,15 +70,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       setUser(loggedInUser);
       localStorage.setItem("user", JSON.stringify(loggedInUser));
 
-      // ✅ Initialize Hydra SDK and track signin event (fire-and-forget)
-      if (!hydraService.isInitialized()) {
-        console.log(
-          "Initializing Hydra SDK for login user:",
-          loggedInUser.email
-        );
-        hydraService.initialize();
-      }
-
+      // ✅ SDK already initialized - just identify user and track signin
       hydraService.trackUserSignin(
         loggedInUser.id,
         loggedInUser.firstName,
@@ -97,7 +79,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         loggedInUser.phone
       );
 
-      console.log("✅ Login completed, analytics processing in background");
+      console.log("✅ Login completed, user identified");
     } catch (error) {
       console.error("Login failed:", error);
       throw error;
@@ -113,15 +95,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       setUser(newUser);
       localStorage.setItem("user", JSON.stringify(newUser));
 
-      // ✅ Initialize Hydra SDK and track signup event (fire-and-forget)
-      if (!hydraService.isInitialized()) {
-        console.log("Initializing Hydra SDK for signup user:", newUser.email);
-        hydraService.initialize();
-      }
-
+      // ✅ SDK already initialized - just identify user and track signup
       hydraService.trackUserSignup(newUser);
 
-      console.log("✅ Signup completed, analytics processing in background");
+      console.log("✅ Signup completed, user identified");
     } catch (error) {
       console.error("Signup failed:", error);
       throw error;
@@ -138,7 +115,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         hydraService.trackUserSignout(user.id);
         hydraService.resetUserSession();
 
-        console.log("✅ Logout tracking started (background processing)");
+        console.log("✅ User logged out, continuing as anonymous");
       }
 
       setUser(null);
