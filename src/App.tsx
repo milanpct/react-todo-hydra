@@ -46,46 +46,8 @@ function AppContent() {
   // Remote Config is now automatically logged by SDK when initialized
   // No need to manually fetch or log here
 
-  // Automatic permission change detection
-  useEffect(() => {
-    const handleVisibilityChange = async () => {
-      if (document.visibilityState === 'visible') {
-        try {
-          // Get SDK instance for direct access
-          const sdk = hydraService.getSDK();
-          if (!sdk) return;
-          
-          // Check if permission has changed
-          const hasChanged = sdk.hasNotificationPermissionChanged();
-          
-          if (hasChanged) {
-            const currentPermission = 'Notification' in window ? Notification.permission : 'denied';
-            console.log('🔔 Notification permission changed! Current:', currentPermission);
-            
-            // Handle the permission change automatically
-            const newState = await sdk.handleNotificationPermissionChange();
-            
-            if (newState) {
-              console.log('✅ Notification state updated:', newState);
-            }
-          }
-        } catch (error) {
-          console.error('Error handling permission change:', error);
-        }
-      }
-    };
-
-    // Listen for page visibility changes
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-    
-    // Also check on window focus
-    window.addEventListener('focus', handleVisibilityChange);
-
-    return () => {
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
-      window.removeEventListener('focus', handleVisibilityChange);
-    };
-  }, []);
+  // Note: Automatic permission change detection is now handled internally by the SDK
+  // The SDK automatically listens for visibility/focus changes and handles permission updates
 
   return (
     <Layout>
