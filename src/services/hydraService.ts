@@ -19,12 +19,18 @@ class HydraService {
         // baseURL: "https://mock-server-7d3h.onrender.com/",
         // orgId: "1102", // ⚠️ REQUIRED - Replace with your actual orgId
         // vapId: "test-vap-456", // ⚠️ REQUIRED - Replace with your actual vapId
-        // country: "US",
-        // city: "New York",
-        // countryCode: "US",
         debugLevel: "INFO" as const,
         // brandId: "demo-brand",
         // applicationId: "todo-app",
+
+        // 📍 User Location Information (Optional)
+        // Provided by host application during SDK initialization
+        country: "US",
+        city: "New York",
+        countryCode: "US",
+
+        // Optional: Application version for tracking
+        appVersion: "1.0.0",
 
         // 🔥 Push Notifications Configuration
         // Client provides their own Firebase config
