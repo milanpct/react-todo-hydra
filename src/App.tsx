@@ -11,7 +11,6 @@ import Layout from "./components/Layout";
 import Auth from "./pages/Auth";
 import Dashboard from "./pages/Dashboard";
 import LoadTesting from "./pages/LoadTesting";
-import { hydraService } from "./services/hydraService";
 
 function AppContent() {
   const { user } = useAuth();
