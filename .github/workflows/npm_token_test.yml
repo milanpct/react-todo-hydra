@@ -1,0 +1,443 @@
+# .github/workflows/npm_token_test.yml
+# Test workflow for NPM Token Expiration Monitoring
+
+name: NPM Token Test
+
+on:
+  schedule:
+    # Run daily at 9:00 AM UTC to check token expiration
+    - cron: "0 9 * * *"
+  workflow_dispatch: # Manual trigger only for testing
+    inputs:
+      test_mode:
+        description: "Simulate expired token?"
+        required: false
+        type: boolean
+        default: false
+
+jobs:
+  test-token-check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: 📅 Check Token Expiration Date
+        id: check_expiry
+        run: |
+          echo "==================================="
+          echo "📅 Token Expiration Check"
+          echo "==================================="
+          echo ""
+
+          # Priority: GitHub Variables > Config File
+          # This allows changing dates without committing code
+          if [ -n "${{ vars.TOKEN_CREATED_DATE }}" ]; then
+            TOKEN_CREATED_DATE="${{ vars.TOKEN_CREATED_DATE }}"
+            TOKEN_EXPIRY_DAYS="${{ vars.TOKEN_EXPIRY_DAYS || '7' }}"
+            echo "✅ Using GitHub Variables (configurable without code push)"
+            echo "Token created: $TOKEN_CREATED_DATE"
+            echo "Expiry duration: $TOKEN_EXPIRY_DAYS days"
+            echo ""
+          elif [ -f ".github/npm_token_config.env" ]; then
+            source .github/npm_token_config.env
+            echo "✅ Using config file (.github/npm_token_config.env)"
+            echo "Token created: $TOKEN_CREATED_DATE"
+            echo "Expiry duration: $TOKEN_EXPIRY_DAYS days"
+            echo ""
+            echo "💡 TIP: Set GitHub Variables to change without pushing:"
+            echo "   Settings → Secrets and variables → Variables"
+            echo "   - TOKEN_CREATED_DATE (e.g., 2025-12-19)"
+            echo "   - TOKEN_EXPIRY_DAYS (e.g., 7)"
+            echo ""
+          else
+            echo "⚠️  No token configuration found"
+            echo "expiry_status=unknown" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
+          # Calculate expiration date
+          if [[ "$OSTYPE" == "darwin"* ]]; then
+            # macOS
+            EXPIRY_DATE=$(date -j -v+${TOKEN_EXPIRY_DAYS}d -f "%Y-%m-%d" "$TOKEN_CREATED_DATE" +%Y-%m-%d)
+            CURRENT_DATE=$(date +%Y-%m-%d)
+            DAYS_REMAINING=$(( ( $(date -j -f "%Y-%m-%d" "$EXPIRY_DATE" +%s) - $(date -j -f "%Y-%m-%d" "$CURRENT_DATE" +%s) ) / 86400 ))
+          else
+            # Linux
+            EXPIRY_DATE=$(date -d "$TOKEN_CREATED_DATE + $TOKEN_EXPIRY_DAYS days" +%Y-%m-%d)
+            CURRENT_DATE=$(date +%Y-%m-%d)
+            DAYS_REMAINING=$(( ( $(date -d "$EXPIRY_DATE" +%s) - $(date -d "$CURRENT_DATE" +%s) ) / 86400 ))
+          fi
+
+          echo "Current date: $CURRENT_DATE"
+          echo "Expiry date: $EXPIRY_DATE"
+          echo "Days remaining: $DAYS_REMAINING"
+          echo ""
+
+          # Save to output
+          echo "days_remaining=$DAYS_REMAINING" >> $GITHUB_OUTPUT
+          echo "expiry_date=$EXPIRY_DATE" >> $GITHUB_OUTPUT
+
+          # Determine status
+          if [ $DAYS_REMAINING -le 0 ]; then
+            echo "expiry_status=expired" >> $GITHUB_OUTPUT
+            echo "🚨 TOKEN HAS EXPIRED!"
+          elif [ $DAYS_REMAINING -le 1 ]; then
+            echo "expiry_status=critical" >> $GITHUB_OUTPUT
+            echo "🔴 CRITICAL: Token expires in $DAYS_REMAINING day(s)!"
+          elif [ $DAYS_REMAINING -le 3 ]; then
+            echo "expiry_status=warning" >> $GITHUB_OUTPUT
+            echo "⚠️  WARNING: Token expires in $DAYS_REMAINING day(s)"
+          else
+            echo "expiry_status=ok" >> $GITHUB_OUTPUT
+            echo "✅ Token is valid for $DAYS_REMAINING more day(s)"
+          fi
+
+      - name: 🧪 Test NPM Token Check
+        id: check_token
+        run: |
+          echo "==================================="
+          echo "🧪 NPM Token Validation Test"
+          echo "==================================="
+          echo ""
+
+          # Check if test mode is enabled
+          if [ "${{ github.event.inputs.test_mode }}" == "true" ]; then
+            echo "⚠️  TEST MODE ENABLED: Simulating expired token scenario"
+            echo ""
+            echo "status=invalid" >> $GITHUB_OUTPUT
+            echo "❌ Token Status: INVALID/EXPIRED (simulated)"
+            exit 0
+          fi
+
+          echo "🔍 Checking NPM token validity..."
+          echo ""
+
+          # Check if secret exists (without exposing it)
+          if [ -z "${{ secrets.PRODUCTION_NPM_TOKEN }}" ]; then
+            echo "⚠️  WARNING: PRODUCTION_NPM_TOKEN secret not found!"
+            echo "status=missing" >> $GITHUB_OUTPUT
+            echo ""
+            echo "📝 To set up the token:"
+            echo "   1. Go to repository Settings → Secrets and variables → Actions"
+            echo "   2. Add a secret named 'PRODUCTION_NPM_TOKEN'"
+            echo "   3. Use any test value for now (e.g., 'test-token')"
+            exit 0
+          fi
+
+          # Test token by attempting to whoami (simpler endpoint)
+          echo "📡 Making API request to NPM registry..."
+          RESPONSE=$(curl -s -w "\nHTTP_STATUS:%{http_code}" \
+            -H "Authorization: Bearer ${{ secrets.PRODUCTION_NPM_TOKEN }}" \
+            https://registry.npmjs.org/-/whoami)
+
+          HTTP_STATUS=$(echo "$RESPONSE" | grep "HTTP_STATUS:" | cut -d: -f2)
+          BODY=$(echo "$RESPONSE" | sed '/HTTP_STATUS:/d')
+
+          echo "Response Status: $HTTP_STATUS"
+          echo ""
+
+          if [ "$HTTP_STATUS" == "200" ]; then
+            echo "status=valid" >> $GITHUB_OUTPUT
+            echo "✅ Token Status: VALID"
+            echo ""
+            echo "Token is working correctly!"
+          elif [ "$HTTP_STATUS" == "401" ] || [ "$HTTP_STATUS" == "403" ]; then
+            echo "status=invalid" >> $GITHUB_OUTPUT
+            echo "❌ Token Status: INVALID/EXPIRED"
+            echo ""
+            echo "Response: $BODY"
+          else
+            echo "status=error" >> $GITHUB_OUTPUT
+            echo "⚠️  Token Status: ERROR"
+            echo ""
+            echo "HTTP Status: $HTTP_STATUS"
+            echo "Response: $BODY"
+          fi
+
+      - name: 📝 Display Test Results
+        run: |
+          echo "==================================="
+          echo "📊 Test Summary"
+          echo "==================================="
+          echo ""
+          echo "Token Validity: ${{ steps.check_token.outputs.status }}"
+          echo "Expiry Status: ${{ steps.check_expiry.outputs.expiry_status }}"
+          echo "Days Remaining: ${{ steps.check_expiry.outputs.days_remaining }}"
+          echo ""
+
+          if [ "${{ steps.check_token.outputs.status }}" == "valid" ]; then
+            echo "✅ Token is valid and working"
+            echo "✅ This workflow would NOT create an alert"
+          elif [ "${{ steps.check_token.outputs.status }}" == "invalid" ]; then
+            echo "❌ Token is invalid or expired"
+            echo "🚨 This workflow WOULD create an alert/issue"
+            echo ""
+            echo "Next steps in production:"
+            echo "  - Create GitHub Issue"
+            echo "  - Send Slack notification (if configured)"
+            echo "  - Email alerts (if configured)"
+          elif [ "${{ steps.check_token.outputs.status }}" == "missing" ]; then
+            echo "⚠️  Token secret not configured"
+            echo "📝 Add PRODUCTION_NPM_TOKEN to repository secrets"
+          else
+            echo "⚠️  Error checking token"
+            echo "🔧 May need to investigate API connectivity"
+          fi
+
+      - name: 📧 Send Email Notification (Expiring Soon)
+        if: steps.check_expiry.outputs.expiry_status == 'warning' || steps.check_expiry.outputs.expiry_status == 'critical'
+        uses: dawidd6/action-send-mail@v3
+        continue-on-error: true
+        with:
+          server_address: ${{ secrets.SMTP_SERVER || 'smtp.gmail.com' }}
+          server_port: ${{ secrets.SMTP_PORT || '587' }}
+          username: ${{ secrets.SMTP_USERNAME }}
+          password: ${{ secrets.SMTP_PASSWORD }}
+          subject: |
+            ${{ steps.check_expiry.outputs.expiry_status == 'critical' && '🔴 URGENT' || '⚠️ WARNING' }}: NPM Token Expires in ${{ steps.check_expiry.outputs.days_remaining }} Day(s)
+          to: ${{ secrets.ALERT_EMAIL }}
+          from: ${{ secrets.SMTP_USERNAME || 'noreply@github.com' }}
+          html_body: |
+            <!DOCTYPE html>
+            <html>
+            <head>
+              <style>
+                body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+                .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+                .header { background: ${{ steps.check_expiry.outputs.expiry_status == 'critical' && '#dc3545' || '#ffc107' }}; color: white; padding: 20px; border-radius: 5px 5px 0 0; }
+                .content { background: #f8f9fa; padding: 20px; border: 1px solid #dee2e6; }
+                .info-box { background: white; padding: 15px; margin: 10px 0; border-left: 4px solid ${{ steps.check_expiry.outputs.expiry_status == 'critical' && '#dc3545' || '#ffc107' }}; }
+                .action-list { background: white; padding: 15px; margin: 15px 0; }
+                .action-list ol { margin: 0; padding-left: 20px; }
+                .footer { background: #343a40; color: white; padding: 15px; text-align: center; border-radius: 0 0 5px 5px; font-size: 12px; }
+                a { color: #007bff; text-decoration: none; }
+                a:hover { text-decoration: underline; }
+              </style>
+            </head>
+            <body>
+              <div class="container">
+                <div class="header">
+                  <h2>${{ steps.check_expiry.outputs.expiry_status == 'critical' && '🔴 URGENT' || '⚠️ WARNING' }}: NPM Token Expiring Soon</h2>
+                </div>
+                
+                <div class="content">
+                  <div class="info-box">
+                    <p><strong>Status:</strong> ${{ steps.check_expiry.outputs.expiry_status == 'critical' && 'CRITICAL - Immediate Action Required' || 'WARNING - Action Required Soon' }}</p>
+                    <p><strong>Days Remaining:</strong> ${{ steps.check_expiry.outputs.days_remaining }} day(s)</p>
+                    <p><strong>Expiry Date:</strong> ${{ steps.check_expiry.outputs.expiry_date }}</p>
+                    <p><strong>Repository:</strong> <a href="${{ github.server_url }}/${{ github.repository }}">${{ github.repository }}</a></p>
+                  </div>
+                  
+                  <div class="action-list">
+                    <h3>Action Required:</h3>
+                    <ol>
+                      <li><strong>Generate New Token:</strong><br/>
+                        Visit <a href="https://www.npmjs.com/settings/tokens">NPM Token Settings</a><br/>
+                        - Click "Generate New Token" → "Granular Access Token"<br/>
+                        - Set permissions: "Read and write"<br/>
+                        - Set expiration period
+                      </li>
+                      <li><strong>Update GitHub Secret:</strong><br/>
+                        Go to <a href="${{ github.server_url }}/${{ github.repository }}/settings/secrets/actions">Repository Secrets</a><br/>
+                        - Update <code>PRODUCTION_NPM_TOKEN</code> with new token
+                      </li>
+                      <li><strong>Update Configuration:</strong><br/>
+                        Edit <code>.github/npm_token_config.env</code><br/>
+                        - Set <code>TOKEN_CREATED_DATE</code> to today's date<br/>
+                        - Set <code>TOKEN_EXPIRY_DAYS</code> to match token expiration
+                      </li>
+                      <li><strong>Verify:</strong><br/>
+                        <a href="${{ github.server_url }}/${{ github.repository }}/actions">Run the workflow</a> to verify the new token works
+                      </li>
+                    </ol>
+                  </div>
+                  
+                  <p><strong>Impact if not renewed:</strong> CI/CD pipeline will be unable to publish packages to NPM.</p>
+                </div>
+                
+                <div class="footer">
+                  <p>This is an automated alert from GitHub Actions</p>
+                  <p>Repository: ${{ github.repository }} | Workflow: ${{ github.workflow }}</p>
+                </div>
+              </div>
+            </body>
+            </html>
+
+      - name: 📧 Send Critical Email Alert (Expired)
+        if: steps.check_expiry.outputs.expiry_status == 'expired' || steps.check_token.outputs.status == 'invalid'
+        uses: dawidd6/action-send-mail@v3
+        continue-on-error: true
+        with:
+          server_address: ${{ secrets.SMTP_SERVER || 'smtp.gmail.com' }}
+          server_port: ${{ secrets.SMTP_PORT || '587' }}
+          username: ${{ secrets.SMTP_USERNAME }}
+          password: ${{ secrets.SMTP_PASSWORD }}
+          subject: "🚨 CRITICAL: NPM Token EXPIRED - Immediate Action Required"
+          to: ${{ secrets.ALERT_EMAIL }}
+          from: ${{ secrets.SMTP_USERNAME || 'noreply@github.com' }}
+          html_body: |
+            <!DOCTYPE html>
+            <html>
+            <head>
+              <style>
+                body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+                .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+                .header { background: #dc3545; color: white; padding: 20px; border-radius: 5px 5px 0 0; }
+                .content { background: #f8f9fa; padding: 20px; border: 1px solid #dee2e6; }
+                .alert-box { background: #f8d7da; border: 2px solid #dc3545; padding: 15px; margin: 15px 0; border-radius: 5px; }
+                .info-box { background: white; padding: 15px; margin: 10px 0; border-left: 4px solid #dc3545; }
+                .action-list { background: white; padding: 15px; margin: 15px 0; }
+                .action-list ol { margin: 0; padding-left: 20px; }
+                .footer { background: #343a40; color: white; padding: 15px; text-align: center; border-radius: 0 0 5px 5px; font-size: 12px; }
+                a { color: #007bff; text-decoration: none; }
+                a:hover { text-decoration: underline; }
+              </style>
+            </head>
+            <body>
+              <div class="container">
+                <div class="header">
+                  <h2>🚨 CRITICAL: NPM Token EXPIRED</h2>
+                </div>
+                
+                <div class="content">
+                  <div class="alert-box">
+                    <h3>⚠️ Immediate Action Required</h3>
+                    <p><strong>Your NPM authentication token has EXPIRED!</strong></p>
+                    <p>The CI/CD pipeline is currently unable to publish packages to NPM.</p>
+                  </div>
+                  
+                  <div class="info-box">
+                    <p><strong>Status:</strong> Token is invalid or expired</p>
+                    <p><strong>Impact:</strong> Cannot publish to NPM</p>
+                    <p><strong>Repository:</strong> <a href="${{ github.server_url }}/${{ github.repository }}">${{ github.repository }}</a></p>
+                    <p><strong>Detected:</strong> ${{ github.event.repository.updated_at }}</p>
+                  </div>
+                  
+                  <div class="action-list">
+                    <h3>🔧 Immediate Actions Required:</h3>
+                    <ol>
+                      <li><strong>Generate New Token (URGENT):</strong><br/>
+                        Visit <a href="https://www.npmjs.com/settings/tokens">NPM Token Settings</a><br/>
+                        - Click "Generate New Token" → "Granular Access Token"<br/>
+                        - Set permissions: "Read and write" for packages<br/>
+                        - Set appropriate expiration period<br/>
+                        - Copy the token immediately
+                      </li>
+                      <li><strong>Update GitHub Secret:</strong><br/>
+                        Go to <a href="${{ github.server_url }}/${{ github.repository }}/settings/secrets/actions">Repository Secrets</a><br/>
+                        - Update <code>PRODUCTION_NPM_TOKEN</code> with the new token
+                      </li>
+                      <li><strong>Update Configuration File:</strong><br/>
+                        Edit <code>.github/npm_token_config.env</code> in your repository<br/>
+                        - Set <code>TOKEN_CREATED_DATE</code> to today's date (YYYY-MM-DD)<br/>
+                        - Set <code>TOKEN_EXPIRY_DAYS</code> to match your token's expiration
+                      </li>
+                      <li><strong>Verify Fix:</strong><br/>
+                        <a href="${{ github.server_url }}/${{ github.repository }}/actions">Run the monitoring workflow</a> manually to verify the new token works
+                      </li>
+                    </ol>
+                  </div>
+                  
+                  <div class="alert-box">
+                    <p><strong>⏰ Time Sensitive:</strong> Until this is resolved, any attempts to publish packages will fail.</p>
+                  </div>
+                </div>
+                
+                <div class="footer">
+                  <p>This is an automated CRITICAL alert from GitHub Actions</p>
+                  <p>Repository: ${{ github.repository }} | Workflow: ${{ github.workflow }}</p>
+                  <p>Do not reply to this email - take action immediately</p>
+                </div>
+              </div>
+            </body>
+            </html>
+
+      - name: 🧪 Simulate Issue Creation (Test Mode Only)
+        if: steps.check_token.outputs.status == 'invalid'
+        run: |
+          echo "==================================="
+          echo "🧪 Issue Creation Simulation"
+          echo "==================================="
+          echo ""
+          echo "In production, this would create a GitHub Issue with:"
+          echo ""
+          echo "Title: 🚨 NPM Token Expired - Immediate Action Required"
+          echo ""
+          echo "Content would include:"
+          echo "  - Expiration notification"
+          echo "  - Step-by-step renewal guide"
+          echo "  - Links to NPM and GitHub settings"
+          echo "  - Impact assessment"
+          echo ""
+          echo "Labels: npm-token, urgent, ci-cd"
+
+      - name: 📋 Summary
+        if: always()
+        run: |
+          echo "### 🧪 NPM Token Test Results" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          # Token validity status
+          if [ "${{ steps.check_token.outputs.status }}" == "valid" ]; then
+            echo "✅ **Token Validity:** Valid and working" >> $GITHUB_STEP_SUMMARY
+          elif [ "${{ steps.check_token.outputs.status }}" == "invalid" ]; then
+            echo "❌ **Token Validity:** INVALID or EXPIRED" >> $GITHUB_STEP_SUMMARY
+          elif [ "${{ steps.check_token.outputs.status }}" == "missing" ]; then
+            echo "⚠️  **Token Validity:** Secret not configured" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "⚠️  **Token Validity:** Error checking token" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          # Expiration status
+          if [ "${{ steps.check_expiry.outputs.expiry_status }}" == "expired" ]; then
+            echo "🚨 **Expiration Status:** TOKEN EXPIRED" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "**Expired on:** ${{ steps.check_expiry.outputs.expiry_date }}" >> $GITHUB_STEP_SUMMARY
+          elif [ "${{ steps.check_expiry.outputs.expiry_status }}" == "critical" ]; then
+            echo "🔴 **Expiration Status:** CRITICAL - Expires in ${{ steps.check_expiry.outputs.days_remaining }} day(s)" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "**Expiry date:** ${{ steps.check_expiry.outputs.expiry_date }}" >> $GITHUB_STEP_SUMMARY
+          elif [ "${{ steps.check_expiry.outputs.expiry_status }}" == "warning" ]; then
+            echo "⚠️  **Expiration Status:** WARNING - Expires in ${{ steps.check_expiry.outputs.days_remaining }} day(s)" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "**Expiry date:** ${{ steps.check_expiry.outputs.expiry_date }}" >> $GITHUB_STEP_SUMMARY
+          elif [ "${{ steps.check_expiry.outputs.expiry_status }}" == "ok" ]; then
+            echo "✅ **Expiration Status:** OK - Valid for ${{ steps.check_expiry.outputs.days_remaining }} more day(s)" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "**Expiry date:** ${{ steps.check_expiry.outputs.expiry_date }}" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "⚠️  **Expiration Status:** Unknown - Config file not found" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "---" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          # Notifications status
+          echo "### 📧 Notification Settings" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          if [ -n "${{ secrets.ALERT_EMAIL }}" ] && [ -n "${{ secrets.SMTP_USERNAME }}" ]; then
+            echo "✅ **Email Notifications:** Enabled" >> $GITHUB_STEP_SUMMARY
+            echo "- Sending to: \`${{ secrets.ALERT_EMAIL }}\`" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "⚠️  **Email Notifications:** Not configured" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "To enable email alerts, add these secrets:" >> $GITHUB_STEP_SUMMARY
+            echo "- \`ALERT_EMAIL\` - Email to receive alerts" >> $GITHUB_STEP_SUMMARY
+            echo "- \`SMTP_USERNAME\` - SMTP username (e.g., Gmail)" >> $GITHUB_STEP_SUMMARY
+            echo "- \`SMTP_PASSWORD\` - SMTP password/app password" >> $GITHUB_STEP_SUMMARY
+            echo "- \`SMTP_SERVER\` (optional) - Default: smtp.gmail.com" >> $GITHUB_STEP_SUMMARY
+            echo "- \`SMTP_PORT\` (optional) - Default: 587" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Test Mode:** ${{ github.event.inputs.test_mode || 'false' }}" >> $GITHUB_STEP_SUMMARY
