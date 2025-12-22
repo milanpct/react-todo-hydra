@@ -7,6 +7,7 @@
  *    - Data-only messages
  *    - Action buttons (URL or ID-based)
  *    - CTAs mapping action -> URL
+ *    - DLR (Delivery Receipt) tracking for received, clicked, dismissed events
  */
 
 importScripts(
@@ -32,6 +33,109 @@ firebase.initializeApp({
 
 const messaging = firebase.messaging();
 console.log("[FCM SW] Initialized");
+
+// --------------------------------------------------
+// DLR (Delivery Receipt) IndexedDB Helper
+// Stores DLR events for the main app to process
+// --------------------------------------------------
+const DLR_DB_NAME = "WebSDK_DLR_SW";
+const DLR_DB_VERSION = 1;
+const DLR_STORE_NAME = "pending_dlr_events";
+
+/**
+ * Open DLR IndexedDB database
+ */
+function openDLRDatabase() {
+  return new Promise((resolve, reject) => {
+    const request = indexedDB.open(DLR_DB_NAME, DLR_DB_VERSION);
+
+    request.onerror = () => {
+      console.error("[FCM SW] Failed to open DLR database:", request.error);
+      reject(request.error);
+    };
+
+    request.onsuccess = () => {
+      resolve(request.result);
+    };
+
+    request.onupgradeneeded = (event) => {
+      const db = event.target.result;
+      if (!db.objectStoreNames.contains(DLR_STORE_NAME)) {
+        const store = db.createObjectStore(DLR_STORE_NAME, {
+          keyPath: "id",
+          autoIncrement: true,
+        });
+        store.createIndex("timestamp", "timestamp", { unique: false });
+        store.createIndex("type", "type", { unique: false });
+        console.log("[FCM SW] DLR database store created");
+      }
+    };
+  });
+}
+
+/**
+ * Store DLR event in IndexedDB for main app to process
+ * @param {string} type - Event type: 'received', 'clicked', or 'dismissed'
+ * @param {object} data - Notification data containing messageId, campaignId, etc.
+ */
+async function storeDLREvent(type, data) {
+  try {
+    const db = await openDLRDatabase();
+
+    const dlrEvent = {
+      type: type,
+      messageId: data.messageId || "",
+      campaignId: data.campaignId || "",
+      variationId: data.variationId || "",
+      senderId: data.senderId || "",
+      cuid: data.cuid || "",
+      accountId: data.accountId || "",
+      timestamp: new Date().toISOString(),
+    };
+
+    return new Promise((resolve, reject) => {
+      const transaction = db.transaction([DLR_STORE_NAME], "readwrite");
+      const store = transaction.objectStore(DLR_STORE_NAME);
+      const request = store.add(dlrEvent);
+
+      request.onerror = () => {
+        console.error("[FCM SW] Failed to store DLR event:", request.error);
+        db.close();
+        reject(request.error);
+      };
+
+      request.onsuccess = () => {
+        console.log("[FCM SW] DLR event stored:", type, dlrEvent.messageId);
+        db.close();
+        resolve();
+      };
+    });
+  } catch (error) {
+    console.error("[FCM SW] Error storing DLR event:", error);
+  }
+}
+
+/**
+ * Notify main app that there are pending DLR events
+ * Uses postMessage to all clients
+ */
+async function notifyMainAppOfDLREvents() {
+  try {
+    const allClients = await clients.matchAll({
+      type: "window",
+      includeUncontrolled: true,
+    });
+
+    for (const client of allClients) {
+      client.postMessage({
+        type: "HYDRA_DLR_EVENTS_PENDING",
+        timestamp: new Date().toISOString(),
+      });
+    }
+  } catch (error) {
+    console.error("[FCM SW] Error notifying main app:", error);
+  }
+}
 
 // --------------------------------------------------
 // Handle background messages (tab closed / in bg)
@@ -122,7 +226,26 @@ messaging.onBackgroundMessage((payload) => {
 
   console.log("[FCM SW] Showing notification:", title);
 
-  return self.registration.showNotification(title, notificationOptions);
+  // Track DLR: notification received
+  // Use tag as messageId for consistency across received/clicked/dismissed
+  const dlrData = {
+    messageId: tag,
+    campaignId: data.campaignId,
+    variationId: data.variationId,
+    senderId: data.senderId,
+    cuid: data.cuid,
+    accountId: data.accountId,
+  };
+
+  // Store DLR event and show notification
+  return storeDLREvent("received", dlrData)
+    .then(() => notifyMainAppOfDLREvents())
+    .then(() => self.registration.showNotification(title, notificationOptions))
+    .catch((error) => {
+      console.error("[FCM SW] Error in DLR tracking:", error);
+      // Still show notification even if DLR fails
+      return self.registration.showNotification(title, notificationOptions);
+    });
 });
 
 // --------------------------------------------------
@@ -179,14 +302,32 @@ self.addEventListener("notificationclick", (event) => {
 
   console.log("[FCM SW] Opening URL:", urlToOpen);
 
+  // Track DLR: notification clicked
+  const dlrData = {
+    messageId: notification.tag || "",
+    campaignId: data.campaignId,
+    variationId: data.variationId,
+    senderId: data.senderId,
+    cuid: data.cuid,
+    accountId: data.accountId,
+  };
+
   event.waitUntil(
-    clients.openWindow(urlToOpen).then((client) => {
-      if (client) {
-        console.log("[FCM SW] Window opened");
-      } else {
-        console.warn("[FCM SW] Window did not open");
-      }
-    })
+    storeDLREvent("clicked", dlrData)
+      .then(() => notifyMainAppOfDLREvents())
+      .then(() => clients.openWindow(urlToOpen))
+      .then((client) => {
+        if (client) {
+          console.log("[FCM SW] Window opened");
+        } else {
+          console.warn("[FCM SW] Window did not open");
+        }
+      })
+      .catch((error) => {
+        console.error("[FCM SW] Error in click handler:", error);
+        // Still try to open window even if DLR fails
+        return clients.openWindow(urlToOpen);
+      })
   );
 });
 
@@ -194,10 +335,30 @@ self.addEventListener("notificationclick", (event) => {
 // Handle notification close (dismiss)
 // --------------------------------------------------
 self.addEventListener("notificationclose", (event) => {
-  const data = event.notification.data || {};
+  const notification = event.notification;
+  const data = notification.data || {};
+
   console.log("[FCM SW] Notification dismissed");
   console.log("[FCM SW]   - Campaign ID:", data.campaignId || "N/A");
-  console.log("[FCM SW]   - Tag:", event.notification.tag);
+  console.log("[FCM SW]   - Tag:", notification.tag);
+
+  // Track DLR: notification dismissed
+  const dlrData = {
+    messageId: notification.tag || "",
+    campaignId: data.campaignId,
+    variationId: data.variationId,
+    senderId: data.senderId,
+    cuid: data.cuid,
+    accountId: data.accountId,
+  };
+
+  event.waitUntil(
+    storeDLREvent("dismissed", dlrData)
+      .then(() => notifyMainAppOfDLREvents())
+      .catch((error) => {
+        console.error("[FCM SW] Error tracking dismiss DLR:", error);
+      })
+  );
 });
 
 // --------------------------------------------------
