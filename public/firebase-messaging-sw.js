@@ -205,10 +205,13 @@ messaging.onBackgroundMessage((payload) => {
       clickUrl,
       ctaActions,
       actions,
+      // DLR-related fields
+      scope: data.scope,
       campaignId: data.campaignId,
+      variationId: data.variationId,
+      senderId: data.senderId,
       cuid: data.cuid,
       accountId: data.accountId,
-      variationId: data.variationId,
       originalData: data,
     },
   };
