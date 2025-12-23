@@ -85,6 +85,7 @@ async function storeDLREvent(type, data) {
     const dlrEvent = {
       type: type,
       messageId: data.messageId || "",
+      scope: data.scope || "",
       campaignId: data.campaignId || "",
       variationId: data.variationId || "",
       senderId: data.senderId || "",
@@ -230,6 +231,7 @@ messaging.onBackgroundMessage((payload) => {
   // Use tag as messageId for consistency across received/clicked/dismissed
   const dlrData = {
     messageId: tag,
+    scope: data.scope,
     campaignId: data.campaignId,
     variationId: data.variationId,
     senderId: data.senderId,
@@ -305,6 +307,7 @@ self.addEventListener("notificationclick", (event) => {
   // Track DLR: notification clicked
   const dlrData = {
     messageId: notification.tag || "",
+    scope: data.scope,
     campaignId: data.campaignId,
     variationId: data.variationId,
     senderId: data.senderId,
@@ -345,6 +348,7 @@ self.addEventListener("notificationclose", (event) => {
   // Track DLR: notification dismissed
   const dlrData = {
     messageId: notification.tag || "",
+    scope: data.scope,
     campaignId: data.campaignId,
     variationId: data.variationId,
     senderId: data.senderId,
