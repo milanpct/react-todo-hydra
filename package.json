@@ -1,6 +1,6 @@
 {
   "name": "react-todo-hydra-oidc-test",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "React Todo App with Hydra SDK - OIDC Publishing Test",
   "author": "imprj",
   "license": "MIT",
