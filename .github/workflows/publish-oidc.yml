@@ -37,9 +37,9 @@ jobs:
         continue-on-error: true
 
       - name: Publish to NPM with OIDC
-        run: npm publish --access public
+        run: npm publish --access public --provenance false
         # No NODE_AUTH_TOKEN needed! OIDC handles authentication automatically
-        # Provenance is generated automatically
+        # Provenance generation is disabled
 
       - name: Display success message
         run: |
