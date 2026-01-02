@@ -1,6 +1,6 @@
 {
   "name": "react-todo-hydra-oidc-test",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "React Todo App with Hydra SDK - OIDC Publishing Test",
   "author": "imprj",
   "license": "MIT",
@@ -8,7 +8,12 @@
     "type": "git",
     "url": "https://github.com/milanpct/react-todo-hydra.git"
   },
-  "keywords": ["react", "todo", "hydra-sdk", "oidc-test"],
+  "keywords": [
+    "react",
+    "todo",
+    "hydra-sdk",
+    "oidc-test"
+  ],
   "files": [
     "build/**/*",
     "public/**/*",
