@@ -23,6 +23,12 @@ jobs:
           node-version: "22"
           registry-url: "https://registry.npmjs.org"
 
+      - name: Configure npm
+        run: |
+          npm config delete always-auth
+          npm config set fund false
+          npm config set audit false
+
       - name: Install latest npm (required for OIDC)
         run: npm install -g npm@latest
 
