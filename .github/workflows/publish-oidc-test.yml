@@ -1,0 +1,106 @@
+# OIDC NPM Publishing Workflow - Test Package
+# This workflow tests NPM OIDC Trusted Publishing
+
+name: Publish to NPM (OIDC Test)
+
+on:
+  # Trigger on version tags
+  push:
+    tags:
+      - "v*.*.*" # Production: v1.0.0
+      - "test-v*.*.*" # Testing: test-v0.1.0
+
+  # Manual trigger for testing
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version to publish (e.g., 0.1.1)"
+        required: true
+        default: "0.1.0"
+      tag:
+        description: "NPM dist-tag (latest, beta, test)"
+        required: false
+        default: "test"
+
+# Required permissions for OIDC
+permissions:
+  contents: read
+  id-token: write # This enables OIDC token generation
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 📥 Checkout Code
+        uses: actions/checkout@v4
+
+      - name: 🔧 Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          registry-url: "https://registry.npmjs.org"
+
+      - name: 📦 Install Dependencies
+        run: npm ci
+
+      - name: 🏗️ Build Package
+        run: npm run build
+
+      - name: 📝 Update Version (Manual Trigger)
+        if: github.event_name == 'workflow_dispatch'
+        run: |
+          echo "Updating version to ${{ github.event.inputs.version }}"
+          npm version ${{ github.event.inputs.version }} --no-git-tag-version
+
+      - name: 🧪 Display Package Info
+        run: |
+          echo "📦 Package Information:"
+          npm pack --dry-run
+          echo ""
+          echo "📋 Package.json:"
+          cat package.json | grep -E '"(name|version|description)"'
+
+      - name: 🚀 Publish to NPM with OIDC
+        run: |
+          if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
+            # Manual trigger: use custom tag
+            npm publish --access public --tag ${{ github.event.inputs.tag }}
+          else
+            # Tag trigger: use default (latest)
+            npm publish --access public
+          fi
+        # No NODE_AUTH_TOKEN needed - OIDC handles authentication
+        # Provenance is generated automatically when using trusted publishing
+
+      - name: ✅ Success Summary
+        if: success()
+        run: |
+          echo "🎉 Package published successfully!"
+          echo ""
+          echo "📦 Package: $(node -p "require('./package.json').name")"
+          echo "🏷️  Version: $(node -p "require('./package.json').version")"
+          echo ""
+          if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
+            echo "🔖 Tag: ${{ github.event.inputs.tag }}"
+          else
+            echo "🔖 Tag: latest"
+          fi
+          echo ""
+          echo "✅ Published with OIDC provenance attestation"
+          echo "🔒 No secrets were used - authentication via GitHub identity"
+
+      - name: ❌ Failure Debug Info
+        if: failure()
+        run: |
+          echo "❌ Publishing failed!"
+          echo ""
+          echo "📋 Debug Information:"
+          echo "Event: ${{ github.event_name }}"
+          echo "Ref: ${{ github.ref }}"
+          echo ""
+          echo "💡 Common issues:"
+          echo "  1. NPM trusted publisher not configured"
+          echo "  2. Package name already taken"
+          echo "  3. Version already published"
+          echo "  4. OIDC permissions not enabled"
