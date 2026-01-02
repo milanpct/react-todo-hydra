@@ -1,7 +1,29 @@
 {
   "name": "react-todo-hydra",
   "version": "0.1.0",
-  "private": true,
+  "description": "React Todo App - OIDC Publishing Test Package",
+  "main": "build/index.js",
+  "types": "build/index.d.ts",
+  "files": [
+    "build",
+    "README.md"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/milanpct/react-todo-hydra.git"
+  },
+  "keywords": [
+    "react",
+    "todo",
+    "test",
+    "oidc"
+  ],
+  "author": "Your Name",
+  "license": "MIT",
+  "private": false,
+  "publishConfig": {
+    "access": "public"
+  },
   "dependencies": {
     "@testing-library/dom": "^10.4.1",
     "@testing-library/jest-dom": "^6.8.0",
