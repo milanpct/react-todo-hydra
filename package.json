@@ -19,7 +19,7 @@
     "public/**/*",
     "README.md"
   ],
-  "homepage": "https://github.com/milanpct/react-todo-hydra#readme",
+  "homepage": ".",
   "private": false,
   "dependencies": {
     "@testing-library/dom": "^10.4.1",

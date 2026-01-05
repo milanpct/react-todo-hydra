@@ -23,4 +23,4 @@
   minify = true
 
 [build.processing.html]
-  pretty_urls = true
+  pretty_urls = false
