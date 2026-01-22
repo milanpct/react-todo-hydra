@@ -69,9 +69,9 @@ export const TodoProvider: React.FC<TodoProviderProps> = ({ children }) => {
 
         // Track todo creation event
         hydraService.trackEvent("todo_created", {
-          todoId: newTodo.id,
+          todoId: `${newTodo.id}`,
           title: newTodo.title,
-          userId: user.id,
+          userId: `${user.id}`,
         });
       } else {
         // ✅ ANONYMOUS: Add to localStorage
@@ -91,9 +91,9 @@ export const TodoProvider: React.FC<TodoProviderProps> = ({ children }) => {
 
         // Track anonymous todo creation
         hydraService.trackEvent("todo_created", {
-          todoId: newTodo.id,
+          todoId: `${newTodo.id}`,
           title: newTodo.title,
-          anonymous: true,
+          anonymous: "true",
         });
       }
     } catch (error) {
@@ -116,9 +116,9 @@ export const TodoProvider: React.FC<TodoProviderProps> = ({ children }) => {
 
         // Track todo update event
         hydraService.trackEvent("todo_updated", {
-          todoId: id,
-          updates: Object.keys(updates),
-          userId: user.id,
+          todoId: `${id}`,
+          updates: `${Object.keys(updates)}`,
+          userId: `${user.id}`,
         });
       } else {
         // ✅ ANONYMOUS: Update in localStorage
@@ -137,9 +137,9 @@ export const TodoProvider: React.FC<TodoProviderProps> = ({ children }) => {
 
         // Track anonymous todo update
         hydraService.trackEvent("todo_updated", {
-          todoId: id,
-          updates: Object.keys(updates),
-          anonymous: true,
+          todoId: `${id}`,
+          updates: `${Object.keys(updates)}`,
+          anonymous: "true",
         });
       }
     } catch (error) {
@@ -160,8 +160,8 @@ export const TodoProvider: React.FC<TodoProviderProps> = ({ children }) => {
 
         // Track todo deletion event
         hydraService.trackEvent("todo_deleted", {
-          todoId: id,
-          userId: user.id,
+          todoId: `${id}`,
+          userId: `${user.id}`,
         });
       } else {
         // ✅ ANONYMOUS: Delete from localStorage
@@ -171,8 +171,8 @@ export const TodoProvider: React.FC<TodoProviderProps> = ({ children }) => {
 
         // Track anonymous todo deletion
         hydraService.trackEvent("todo_deleted", {
-          todoId: id,
-          anonymous: true,
+          todoId: `${id}`,
+          anonymous: "true",
         });
       }
     } catch (error) {
@@ -191,9 +191,9 @@ export const TodoProvider: React.FC<TodoProviderProps> = ({ children }) => {
 
     // ✅ Track todo completion event (fire-and-forget)
     hydraService.trackEvent("todo_toggled", {
-      todoId: id,
-      completed: !todo.completed,
-      userId: user?.id,
+      todoId: `${id}`,
+      completed: `${!todo.completed}`,
+      userId: `${user?.id}`,
     });
   };
 

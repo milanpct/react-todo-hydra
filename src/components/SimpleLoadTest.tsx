@@ -62,30 +62,31 @@ const SimpleLoadTest: React.FC = () => {
               case 0:
                 hydraService.trackEvent("page_view", {
                   page: "/dashboard",
-                  eventIndex: i,
-                  timestamp: Date.now(),
+                  event_number: `${i}`,
+                  eventIndex: `${i}`,
+                  timestamp: `${Date.now()}`,
                 });
                 break;
               case 1:
                 hydraService.trackEvent("scroll_event", {
-                  position: Math.floor(Math.random() * 1000),
-                  eventIndex: i,
-                  timestamp: Date.now(),
+                  position: `${Math.floor(Math.random() * 1000)}`,
+                  eventIndex: `${i}`,
+                  timestamp: `${Date.now()}`,
                 });
                 break;
               case 2:
                 hydraService.trackEvent("button_click", {
                   buttonId: `btn-${i}`,
-                  eventIndex: i,
-                  timestamp: Date.now(),
+                  eventIndex: `${i}`,
+                  timestamp: `${Date.now()}`,
                 });
                 break;
               case 3:
                 hydraService.trackEvent("user_interaction", {
                   action: "click",
                   element: `element-${i}`,
-                  eventIndex: i,
-                  timestamp: Date.now(),
+                  eventIndex: `${i}`,
+                  timestamp: `${Date.now()}`,
                 });
                 break;
             }

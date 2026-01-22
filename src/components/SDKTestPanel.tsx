@@ -30,10 +30,10 @@ export const SDKTestPanel: React.FC = () => {
       for (let i = 1; i <= 5; i++) {
         promises.push(
           hydraService.trackEvent(`success_test_event_${i}`, {
-            test_success: true,
-            event_number: i,
-            timestamp: Date.now(),
-            user_id: user.id,
+            test_success: "true",
+            event_number: `${i}`,
+            timestamp: `${Date.now()}`,
+            user_id: `${user.id}`,
           })
         );
       }
@@ -63,10 +63,10 @@ export const SDKTestPanel: React.FC = () => {
       for (let i = 1; i <= 10; i++) {
         promises.push(
           hydraService.trackEvent(`partial_test_event_${i}`, {
-            test_partial: true,
-            event_number: i,
-            timestamp: Date.now(),
-            user_id: user.id,
+            test_partial: "true",
+            event_number: `${i}`,
+            timestamp: `${Date.now()}`,
+            user_id: `${user.id}`,
           })
         );
       }
@@ -99,11 +99,11 @@ export const SDKTestPanel: React.FC = () => {
       for (let i = 1; i <= 120; i++) {
         promises.push(
           hydraService.trackEvent(`large_batch_event_${i}`, {
-            test_large_batch: true,
-            event_number: i,
-            batch_group: Math.ceil(i / 40), // Group for easier tracking
-            timestamp: Date.now(),
-            user_id: user.id,
+            test_large_batch: "true",
+            event_number: `${i}`,
+            batch_group: `${Math.ceil(i / 40)}`, // Group for easier tracking
+            timestamp: `${Date.now()}`,
+            user_id: `${user.id}`,
           })
         );
       }
@@ -136,11 +136,11 @@ export const SDKTestPanel: React.FC = () => {
       for (let i = 1; i <= 8; i++) {
         promises.push(
           hydraService.trackEvent(`retry_test_event_${i}`, {
-            test_retry: true,
-            event_number: i,
-            retry_attempt: 1, // Track which attempt this is
-            timestamp: Date.now(),
-            user_id: user.id,
+            test_retry: "true",
+            event_number: `${i}`,
+            retry_attempt: `${1}`, // Track which attempt this is
+            timestamp: `${Date.now()}`,
+            user_id: `${user.id}`,
           })
         );
       }
