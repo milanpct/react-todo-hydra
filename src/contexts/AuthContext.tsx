@@ -32,7 +32,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     try {
       if (!hydraService.isInitialized()) {
         console.log("Initializing Hydra SDK for anonymous user");
-        hydraService.initializeAnonymous();
+        hydraService.initialize();
       }
     } catch (error) {
       console.error("Failed to initialize SDK for anonymous user:", error);

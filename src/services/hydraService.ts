@@ -2,38 +2,31 @@
 import WebSDK from "cap-hydra-web-sdk";
 
 class HydraService {
-  private sdk: InstanceType<typeof WebSDK> | null = null;
-  private initialized = false;
   private userIdentified = false;
 
-  // Initialize SDK for anonymous users (called on app load)
-  initializeAnonymous() {
-    if (this.initialized) {
-      console.log("Hydra SDK already initialized");
+  /**
+   * Initialize the SDK. Call once on app load.
+   * The SDK manages its own singleton instance internally.
+   */
+  initialize() {
+    if (WebSDK.isInitialized()) {
+      console.log("Hydra SDK already initialized, reusing instance");
       return;
     }
 
     try {
-      const config = {
-        // accountId: "1234",
-        // baseURL: "https://mock-server-7d3h.onrender.com/",
-        // orgId: "1102", // ⚠️ REQUIRED - Replace with your actual orgId
-        // vapId: "test-vap-456", // ⚠️ REQUIRED - Replace with your actual vapId
+      WebSDK.initialize({
         debugLevel: "INFO" as const,
-        // brandId: "demo-brand",
-        // applicationId: "todo-app",
 
-        // 📍 User Location Information (Optional)
-        // Provided by host application during SDK initialization
+        // User Location Information (Optional)
         country: "US",
         city: "New York",
         countryCode: "US",
 
-        // Optional: Application version for tracking
+        // Application version for tracking
         appVersion: "1.0.0",
 
-        // 🔥 Push Notifications Configuration
-        // Client provides their own Firebase config
+        // Push Notifications Configuration
         notifications: {
           enableNotifications: true,
           vapidKey:
@@ -50,37 +43,14 @@ class HydraService {
           measurementId: "G-C3TRBSEFBV",
         },
         remoteConfigKey: "react_todo_sample_app_config",
-      };
+      });
 
-      console.log("Initializing Hydra SDK for anonymous tracking:", config);
-      this.sdk = new WebSDK(config);
-
-      // ✅ Fire-and-forget initialization (non-blocking)
-      this.sdk.init();
-      this.initialized = true;
       this.userIdentified = false;
-      console.log(
-        "✅ Hydra SDK initialized for anonymous tracking (background processing)"
-      );
+      console.log("Hydra SDK initialized (background processing)");
     } catch (error) {
       console.error("Failed to initialize Hydra SDK:", error);
       throw error;
     }
-  }
-
-  // Reuse existing SDK instance if already initialized
-  initialize() {
-    if (this.initialized) {
-      console.log("Hydra SDK already initialized, reusing instance");
-      return;
-    }
-    this.initializeAnonymous();
-  }
-
-  // Mark user as identified
-  private identifyUser(userId: string) {
-    this.userIdentified = true;
-    console.log("✅ User identified:", userId);
   }
 
   trackUserSignup(user: {
@@ -90,130 +60,100 @@ class HydraService {
     email: string;
     phone: string;
   }) {
-    if (!this.sdk) {
+    if (!WebSDK.isInitialized()) {
       console.warn("SDK not initialized, signup tracking skipped");
       return;
     }
 
-    // ✅ Identify user on signup
-    this.identifyUser(user.id);
-
-    // ✅ Fire-and-forget user signup tracking (non-blocking)
-    this.sdk.pushUserSignup(
-      user.id,
-      user.firstName,
-      user.lastName,
-      user.email,
-      user.phone
-    );
-    console.log("✅ User signup tracking started (background processing)");
+    this.userIdentified = true;
+    WebSDK.pushUserSignup(user.id, {
+      firstName: user.firstName,
+      lastName: user.lastName,
+      email: user.email,
+      phone: user.phone,
+    });
+    console.log("User signup tracking started (background processing)");
   }
 
   trackUserSignin(
     userId: string,
-    firstName?: string,
-    lastName?: string,
+    firstName: string,
+    lastName: string,
     email?: string,
-    phone?: string
+    phone?: string,
   ) {
-    if (!this.sdk) {
+    if (!WebSDK.isInitialized()) {
       console.warn("SDK not initialized, signin tracking skipped");
       return;
     }
 
-    // ✅ Identify user on signin
-    this.identifyUser(userId);
-
-    // ✅ Fire-and-forget user signin tracking (non-blocking)
-    this.sdk.pushUserSignin(userId, firstName, lastName, email, phone);
-    console.log("✅ User signin tracking started (background processing)");
+    this.userIdentified = true;
+    WebSDK.pushUserSignin(userId, {
+      firstName,
+      lastName,
+      ...(email && { email }),
+      ...(phone && { phone }),
+    });
+    console.log("User signin tracking started (background processing)");
   }
 
   trackUserUpdate(user: {
     id: string;
-    firstName?: string;
-    lastName?: string;
+    firstName: string;
+    lastName: string;
     email?: string;
     phone?: string;
   }) {
-    if (!this.sdk) {
+    if (!WebSDK.isInitialized()) {
       console.warn("SDK not initialized, update tracking skipped");
       return;
     }
 
-    // ✅ Fire-and-forget user update tracking (non-blocking)
-    this.sdk.pushUserUpdate(
-      user.id,
-      user.firstName,
-      user.lastName,
-      user.email,
-      user.phone
-    );
-    console.log("✅ User update tracking started (background processing)");
+    WebSDK.pushUserUpdate(user.id, {
+      firstName: user.firstName,
+      lastName: user.lastName,
+      ...(user.email && { email: user.email }),
+      ...(user.phone && { phone: user.phone }),
+    });
+    console.log("User update tracking started (background processing)");
   }
 
   trackUserSignout(userId: string) {
-    if (!this.sdk) {
+    if (!WebSDK.isInitialized()) {
       console.warn("SDK not initialized, signout tracking skipped");
       return;
     }
 
-    // ✅ Fire-and-forget user signout tracking (non-blocking)
-    this.sdk.pushUserSignOut(userId);
-
-    // ✅ User becomes anonymous after signout
+    WebSDK.pushUserSignOut(userId);
     this.userIdentified = false;
     console.log(
-      "✅ User signout tracking started, user now anonymous (background processing)"
+      "User signout tracking started, user now anonymous (background processing)",
     );
   }
 
-  // Method to reset SDK state (user becomes anonymous)
   resetUserSession() {
-    // Don't destroy SDK - just mark as anonymous
     this.userIdentified = false;
     console.log("User session reset - SDK continues for anonymous tracking");
   }
 
-  // Method to check if SDK is initialized
   isInitialized(): boolean {
-    return this.initialized && this.sdk !== null;
+    return WebSDK.isInitialized();
   }
 
-  // Method to check if user is identified
   isUserIdentified(): boolean {
     return this.userIdentified;
   }
 
   trackEvent(eventName: string, attributes?: Record<string, unknown>) {
-    if (!this.sdk) {
+    if (!WebSDK.isInitialized()) {
       console.warn("SDK not initialized, event tracking skipped:", eventName);
       return;
     }
 
-    // ✅ Fire-and-forget event tracking (non-blocking)
-    this.sdk.pushEvent(eventName, attributes);
+    WebSDK.pushEvent(eventName, attributes);
     console.log(
-      `✅ Event '${eventName}' tracking started (background processing)`
+      `Event '${eventName}' tracking started (background processing)`,
     );
-  }
-
-  /**
-   * Get the SDK instance for direct access to all SDK methods
-   * Use this to access notification, remote config, and other SDK features directly
-   *
-   * @returns SDK instance or null if not initialized
-   *
-   * @example
-   * const sdk = hydraService.getSDK();
-   * if (sdk) {
-   *   const token = sdk.getFCMToken();
-   *   const config = sdk.getRemoteConfigString('key');
-   *   await sdk.reinitializeNotifications();
-   * }
-   */
-  getSDK(): InstanceType<typeof WebSDK> | null {
-    return this.sdk;
   }
 }
 
